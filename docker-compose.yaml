@@ -1,0 +1,63 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: airflow-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5432:5432"
+
+  init:
+    image: apache/airflow:2.6.3
+    container_name: airflow-init
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: mysecretkey
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      AIRFLOW_WWW_USER_USERNAME: "admin"
+      AIRFLOW_WWW_USER_PASSWORD: "admin"
+    entrypoint: ["airflow", "db", "init"]
+
+  webserver:
+    image: apache/airflow:2.6.3
+    container_name: airflow-webserver
+    restart: always
+    depends_on:
+      - init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__WEBSERVER__SECRET_KEY: mysecretkey
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./output:/opt/airflow/output
+    command: webserver
+
+  scheduler:
+    image: apache/airflow:2.6.3
+    container_name: airflow-scheduler
+    restart: always
+    depends_on:
+      - init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    volumes:
+      - ./dags:/opt/airflow/dags
+    command: scheduler
+
+#Workflow of the Setup
+# postgres starts → Creates a PostgreSQL database for Airflow.
+# init runs → Initializes the Airflow metadata database.
+# webserver starts → Hosts the Airflow UI on http://localhost:8080.
+# scheduler starts → Monitors and executes DAGs.
